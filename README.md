@@ -1,2 +1,3 @@
-# rig
+# RIG
+
 Microservice utils set
