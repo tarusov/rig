@@ -12,21 +12,24 @@ import (
 )
 
 // AddSignalWatcher setup a signal recivier for run group.
-func AddSignalWatcher(g *run.Group) {
+func AddSignalWatcher(ctx context.Context, g *run.Group) {
 
-	var ctx, cancel = context.WithCancel(context.Background())
+	var sCtx, sCancel = context.WithCancel(ctx)
 
 	g.Add(func() error {
+
 		sigChan := make(chan os.Signal, 2)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-		logger.Global().Info("signal watcher started")
+		logger.FromContext(sCtx).Info("signal watcher started")
+
 		select {
 		case c := <-sigChan:
 			return fmt.Errorf("terminated with sig %q", c)
-		case <-ctx.Done():
+		case <-sCtx.Done():
 			return nil
 		}
+
 	}, func(err error) {
-		cancel()
+		sCancel()
 	})
 }

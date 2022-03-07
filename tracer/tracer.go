@@ -10,14 +10,23 @@ import (
 )
 
 type (
-	// JaegerTracer struct.
-	jaegerTracer struct {
+	// Tracer struct.
+	Tracer struct {
+		opentracing.Tracer
+		io.Closer
+	}
+
+	// tracerOptions is aux constructor struct.
+	tracerOptions struct {
 		agentHostPort string
 		serviceName   string
 		samplerType   string
 		samplerParam  float64
 		tags          opentracing.Tags
 	}
+
+	// TracerCloseFunc is close func.
+	TracerCloseFunc func() error
 )
 
 // Defaults.
@@ -28,9 +37,9 @@ const (
 )
 
 // New creates new jaeger tracer instance.
-func New(opts ...TracerOption) (opentracing.Tracer, io.Closer, error) {
+func New(opts ...tracerOption) (*Tracer, error) {
 
-	var t = &jaegerTracer{
+	var t = &tracerOptions{
 		serviceName:  defaultServiceName,
 		samplerType:  defaultSamplerType,
 		samplerParam: defaultSamplerParam,
@@ -64,15 +73,13 @@ func New(opts ...TracerOption) (opentracing.Tracer, io.Closer, error) {
 		}
 	}
 
-	return jc.NewTracer()
-}
+	ot, tc, err := jc.NewTracer()
+	if err != nil {
+		return nil, err
+	}
 
-// Global return registered global tracer.
-func Global() opentracing.Tracer {
-	return opentracing.GlobalTracer()
-}
-
-// SetGlobal setup registered global tracer.
-func SetGlobal(tracer opentracing.Tracer) {
-	opentracing.SetGlobalTracer(tracer)
+	return &Tracer{
+		Tracer: ot,
+		Closer: tc,
+	}, nil
 }

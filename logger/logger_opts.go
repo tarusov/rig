@@ -6,13 +6,13 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// LoggerOption is logger constructor optional modificator.
-type LoggerOption func(*Logger)
+// loggerOption is logger constructor optional modificator.
+type loggerOption func(*loggerOptions)
 
 // WithLoggingOutput setup output targets (Stdout, Sentry, files, etc).
 // More than one call of this option will replace previous setup.
-func WithLoggingOutput(out ...io.Writer) LoggerOption {
-	return func(l *Logger) {
+func WithLoggingOutput(out ...io.Writer) loggerOption {
+	return func(l *loggerOptions) {
 		if len(out) == 0 {
 			return
 		}
@@ -22,8 +22,8 @@ func WithLoggingOutput(out ...io.Writer) LoggerOption {
 
 // WithLoggingLevel setup minimum severnity for log messages.
 // If level description is invalid - debug level will be set.
-func WithLoggingLevel(level Level) LoggerOption {
-	return func(l *Logger) {
+func WithLoggingLevel(level Level) loggerOption {
+	return func(l *loggerOptions) {
 		zl, err := zerolog.ParseLevel(string(level))
 		if err != nil {
 			zl = zerolog.DebugLevel
@@ -34,8 +34,8 @@ func WithLoggingLevel(level Level) LoggerOption {
 
 // WithLoggingFormat setup output formatting type.
 // If format description are invalid - json format will be set.
-func WithLoggingFormat(format Format) LoggerOption {
-	return func(l *Logger) {
+func WithLoggingFormat(format Format) loggerOption {
+	return func(l *loggerOptions) {
 		if format != FormatConsole &&
 			format != FormatJSON &&
 			format != FormatText {
@@ -47,15 +47,15 @@ func WithLoggingFormat(format Format) LoggerOption {
 }
 
 // WithLoggingTimestampFormat setup output timestamp formatting (rfc3339).
-func WithLoggingTimestampFormat(tsf string) LoggerOption {
-	return func(l *Logger) {
+func WithLoggingTimestampFormat(tsf string) loggerOption {
+	return func(l *loggerOptions) {
 		l.timestampFormat = tsf
 	}
 }
 
 // WithLoggingTimestampField setup output timestamp field name (ts, time).
-func WithLoggingTimestampField(tsf string) LoggerOption {
-	return func(l *Logger) {
+func WithLoggingTimestampField(tsf string) loggerOption {
+	return func(l *loggerOptions) {
 		l.timestampName = tsf
 	}
 }

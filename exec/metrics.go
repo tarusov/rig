@@ -13,7 +13,7 @@ import (
 )
 
 // AddMetricsEndpoint setup prometheus metrics handler.
-func AddMetricsEndpoint(g *run.Group, registry metrics.Registry, enpoint string, metricsPort int) {
+func AddMetricsEndpoint(ctx context.Context, g *run.Group, registry metrics.Registry, enpoint string, metricsPort int) {
 
 	var mux = chi.NewMux()
 	mux.Handle(enpoint, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
@@ -24,16 +24,22 @@ func AddMetricsEndpoint(g *run.Group, registry metrics.Registry, enpoint string,
 	}
 
 	g.Add(func() error {
-		if err := server.ListenAndServe(); err != nil {
-			logger.Global().WithErr(err).Error("prometheus metrics hanlder listen and serve error")
+
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.FromContext(ctx).WithErr(err).Error("prometheus metrics hanlder listen and serve error")
 			return err
 		}
-		logger.Global().Info("prometheus metrics hanlder stopped")
+
+		logger.FromContext(ctx).Info("prometheus metrics hanlder stopped")
 		return nil
+
 	}, func(error) {
+
 		if err := server.Shutdown(context.Background()); err != nil {
-			logger.Global().WithErr(err).Error("prometheus metrics hanlder shutdown error")
+			logger.FromContext(ctx).WithErr(err).Error("prometheus metrics hanlder shutdown error")
+			return
 		}
-		logger.Global().Info("prometheus metrics hanlder interrupted")
+
+		logger.FromContext(ctx).Info("prometheus metrics hanlder interrupted")
 	})
 }

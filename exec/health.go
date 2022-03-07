@@ -11,14 +11,14 @@ import (
 )
 
 // handleHealthEndpoint write health response.
-func handleHealthEndpoint(w http.ResponseWriter, _ *http.Request) {
+func handleHealthEndpoint(w http.ResponseWriter, r *http.Request) {
 	if _, err := fmt.Fprint(w, "OK"); err != nil {
-		logger.Global().WithErr(err).Error("failed to write health response")
+		logger.FromContext(r.Context()).WithErr(err).Error("failed to write health response")
 	}
 }
 
 // AddHealthEndpoint setup health enpoint.
-func AddHealthEndpoint(g *run.Group, enpoint string, healthPort int) {
+func AddHealthEndpoint(ctx context.Context, g *run.Group, enpoint string, healthPort int) {
 
 	var mux = chi.NewMux()
 	mux.Handle(enpoint, http.HandlerFunc(handleHealthEndpoint))
@@ -29,16 +29,22 @@ func AddHealthEndpoint(g *run.Group, enpoint string, healthPort int) {
 	}
 
 	g.Add(func() error {
-		if err := server.ListenAndServe(); err != nil {
-			logger.Global().WithErr(err).Error("health hanlder listen and serve error")
+
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.FromContext(ctx).WithErr(err).Error("health hanlder listen and serve error")
 			return err
 		}
-		logger.Global().Info("health hanlder stopped")
+
+		logger.FromContext(ctx).Info("health hanlder stopped")
 		return nil
+
 	}, func(error) {
-		if err := server.Shutdown(context.Background()); err != nil {
-			logger.Global().WithErr(err).Error("health hanlder shutdown error")
+
+		if err := server.Shutdown(ctx); err != nil {
+			logger.FromContext(ctx).WithErr(err).Error("health hanlder shutdown error")
+			return
 		}
-		logger.Global().Info("health hanlder interrupted")
+
+		logger.FromContext(ctx).Info("health hanlder interrupted")
 	})
 }

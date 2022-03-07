@@ -3,10 +3,12 @@ package locker
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/bsm/redislock"
 	"github.com/go-redis/redis/v8"
+	"github.com/tarusov/rig/logger"
 )
 
 type (
@@ -20,9 +22,10 @@ type (
 	// UnlockFunc is method for unlock func.
 	UnlockFunc func() error
 
-	// Target key mutex lock.
+	// Target key mutex lock struct.
 	lock struct {
 		*redislock.Lock
+		key string
 		ctx context.Context
 	}
 )
@@ -34,7 +37,7 @@ const (
 )
 
 // New creates new locker instance.
-func New(client redis.UniversalClient, opts ...LockerOption) (*Locker, error) {
+func New(client redis.UniversalClient, opts ...lockerOption) (*Locker, error) {
 
 	var l = &Locker{
 		client:       client,
@@ -49,6 +52,12 @@ func New(client redis.UniversalClient, opts ...LockerOption) (*Locker, error) {
 	return l, nil
 }
 
+// Aux error types.
+var (
+	ErrLockNotObtained = errors.New("failed to obtain lock")        // Unable to obtain lock.
+	ErrNotLocked       = errors.New("failed to unlock - not exist") // No lock exist.
+)
+
 // Lock method create new redis mutex lock. Return unlock func or error.
 func (l *Locker) Lock(ctx context.Context, key string, ttl time.Duration) (UnlockFunc, error) {
 
@@ -62,11 +71,17 @@ func (l *Locker) Lock(ctx context.Context, key string, ttl time.Duration) (Unloc
 		},
 	)
 	if err != nil {
+		if err == redislock.ErrNotObtained {
+			return nil, ErrLockNotObtained
+		}
 		return nil, err
 	}
 
+	logger.FromContext(ctx).WithField("key", key).Debug("lock obtained")
+
 	r := lock{
 		Lock: obtained,
+		key:  key,
 		ctx:  ctx,
 	}
 
@@ -76,6 +91,14 @@ func (l *Locker) Lock(ctx context.Context, key string, ttl time.Duration) (Unloc
 }
 
 // Unlock method try to release current mutex.
-func (l *lock) Unlock() error {
-	return l.Lock.Release(l.ctx)
+func (l *lock) Unlock() (err error) {
+	defer func() {
+		logger.FromContext(l.ctx).WithField("key", l.key).WithErr(err).Debug("unlocked")
+	}()
+
+	err = l.Lock.Release(l.ctx)
+	if err == redislock.ErrLockNotHeld {
+		return ErrNotLocked
+	}
+	return err
 }

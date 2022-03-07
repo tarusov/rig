@@ -25,7 +25,7 @@ type (
 )
 
 // NewSentryNotifier create new sentry notifier instance.
-func NewSentryNotifier(dsn string, opts ...SentryOption) (*SentryNotifier, error) {
+func NewSentryNotifier(dsn string, opts ...sentryOption) (*SentryNotifier, error) {
 
 	if dsn == "" {
 		return nil, errors.New("sentry dsn is empty")
@@ -80,7 +80,7 @@ func (sn *SentryNotifier) WriteLevel(zl zerolog.Level, p []byte) (int, error) {
 		return 0, fmt.Errorf("unmarshal message: %w", err)
 	}
 
-	var msgField, msg = getErrMessage(extra)
+	var msgField, msg = sn.getErrMessage(extra)
 
 	delete(extra, msgField)
 	delete(extra, zerolog.MessageFieldName)
@@ -99,7 +99,7 @@ func (sn *SentryNotifier) capture(msg string, level zerolog.Level, extra Fields)
 	var e = sentry.NewEvent()
 	var stacktrace *sentry.Stacktrace
 	if sn.stacktrace {
-		stacktrace = getStacktrace(msg)
+		stacktrace = sn.getStacktrace(msg)
 	}
 
 	e.Message = msg
@@ -120,7 +120,7 @@ const (
 )
 
 // getErrMessage from error extra data.
-func getErrMessage(extra Fields) (field string, msg string) {
+func (sn *SentryNotifier) getErrMessage(extra Fields) (field string, msg string) {
 	var ok bool
 	if msg, ok = extra[logFieldErr].(string); ok {
 		return logFieldErr, msg
@@ -134,7 +134,7 @@ func getErrMessage(extra Fields) (field string, msg string) {
 }
 
 // getStacktrace extract stacktrace from error.
-func getStacktrace(msg string) *sentry.Stacktrace {
+func (sn *SentryNotifier) getStacktrace(msg string) *sentry.Stacktrace {
 
 	var stacktrace = sentry.ExtractStacktrace(errors.New(msg))
 	if stacktrace == nil {
@@ -146,7 +146,7 @@ func getStacktrace(msg string) *sentry.Stacktrace {
 
 	var frames = make([]sentry.Frame, 0, len(stacktrace.Frames))
 	for _, frame := range stacktrace.Frames {
-		// Skip tracing into logger.
+		// Skip tracing into logger files.
 		if strings.HasPrefix(frame.Module, "github.com/rs/zerolog") ||
 			strings.HasSuffix(frame.Filename, "logger.go") ||
 			strings.HasSuffix(frame.Filename, "sentry.go") {

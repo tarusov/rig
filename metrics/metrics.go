@@ -34,16 +34,3 @@ func New() Registry {
 
 	return r
 }
-
-// globalRegistry is auxilary registry for application.
-var globalRegistry Registry = prometheus.NewRegistry()
-
-// Global return registered global logger (or default).
-func Global() Registry {
-	return globalRegistry
-}
-
-// SetGlobal setup global logger.
-func SetGlobal(registry Registry) {
-	globalRegistry = registry
-}
