@@ -1,7 +1,6 @@
 package databus
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -14,9 +13,8 @@ import (
 type (
 	// Client struct.
 	Client struct {
-		conn  *nats.EncodedConn
-		wg    sync.WaitGroup
-		pubMw []PublishMiddlewareFunc
+		conn *nats.EncodedConn
+		wg   sync.WaitGroup
 	}
 
 	// clientOptions is auxilary constructor struct.
@@ -34,9 +32,6 @@ type (
 		token           string
 		user            string
 	}
-
-	// PublishMiddlewareFunc is middleware func type.
-	PublishMiddlewareFunc func(ctx context.Context, subject string, v interface{}, fn PublishMiddlewareFunc) error
 )
 
 // Defaults.
@@ -57,7 +52,6 @@ func NewClient(servers []string, opts ...clientOption) (*Client, error) {
 	}
 
 	var (
-		c  = &Client{}
 		co = &clientOptions{
 			dialTimeout:     defaultDialTimeout,
 			drainTimeout:    defaultDrainTimeout,
@@ -66,12 +60,14 @@ func NewClient(servers []string, opts ...clientOption) (*Client, error) {
 			reconnectWait:   defaultReconnectWait,
 			pingInterval:    defaultPingInterval,
 		}
+		c = &Client{}
 	)
 
 	for _, opt := range opts {
 		opt(co)
 	}
 
+	// Create connection with target options.
 	c.wg.Add(1)
 	conn, err := nats.Connect("", mkOptions(&c.wg, servers, co)...)
 	if err != nil {
@@ -93,6 +89,7 @@ func NewClient(servers []string, opts ...clientOption) (*Client, error) {
 	return c, nil
 }
 
+// mkOptions create list of options for nats client.
 func mkOptions(clientWg *sync.WaitGroup, servers []string, co *clientOptions) []nats.Option {
 
 	var natsOpts = []nats.Option{
@@ -107,12 +104,15 @@ func mkOptions(clientWg *sync.WaitGroup, servers []string, co *clientOptions) []
 			opts.Servers = servers
 			return nil
 		},
+
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
 			logger.New().Errorf("NATS Disconnected because of err: %v", err)
 		}),
+
 		nats.ReconnectHandler(func(_ *nats.Conn) {
 			logger.New().Info("NATS Reconnecting...")
 		}),
+
 		nats.ClosedHandler(func(_ *nats.Conn) {
 			logger.New().Debug("NATS Connection closed...")
 			clientWg.Done()
@@ -133,12 +133,4 @@ func mkOptions(clientWg *sync.WaitGroup, servers []string, co *clientOptions) []
 	}
 
 	return natsOpts
-}
-
-// Publish
-func (c *Client) Publish(ctx context.Context, subject string, v interface{}) error {
-
-	logger.FromContext(ctx).WithField("subject", subject).Debug("sending message")
-
-	return nil
 }
