@@ -100,5 +100,6 @@ func (l *lock) Unlock() (err error) {
 	if err == redislock.ErrLockNotHeld {
 		return ErrNotLocked
 	}
+
 	return err
 }

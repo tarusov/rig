@@ -1,12 +1,8 @@
-package databus
+package nats
 
-import (
-	"time"
+import "time"
 
-	"github.com/nats-io/nats.go"
-)
-
-// clientOption is constructor interface name.
+// clientOption is constructor modification method.
 type clientOption func(*clientOptions)
 
 // WithName setup client name.
@@ -27,14 +23,6 @@ func WithDialTimeout(timeout time.Duration) clientOption {
 func WithDrainTimeout(timeout time.Duration) clientOption {
 	return func(co *clientOptions) {
 		co.drainTimeout = timeout
-	}
-}
-
-// WithEncoder setup custom encoder for client.
-func WithEncoder(name string, encoder nats.Encoder) clientOption {
-	return func(co *clientOptions) {
-		co.encoderName = name
-		co.encoder = encoder
 	}
 }
 

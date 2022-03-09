@@ -1,6 +1,7 @@
-package databus
+package nats
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -8,12 +9,13 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/tarusov/rig/logger"
+	"github.com/tarusov/rig/mq"
 )
 
 type (
 	// Client struct.
 	Client struct {
-		conn *nats.EncodedConn
+		conn *nats.Conn
 		wg   sync.WaitGroup
 	}
 
@@ -21,8 +23,6 @@ type (
 	clientOptions struct {
 		dialTimeout     time.Duration
 		drainTimeout    time.Duration
-		encoder         nats.Encoder
-		encoderName     string
 		maxReconnection int
 		name            string
 		password        string
@@ -36,16 +36,16 @@ type (
 
 // Defaults.
 const (
-	defaultName            = "client"
 	defaultDialTimeout     = 3 * time.Second
 	defaultDrainTimeout    = 30 * time.Second
 	defaultMaxReconnection = 3
-	defaultReconnectWait   = 1 * time.Second
+	defaultName            = "nats_client"
 	defaultPingInterval    = 3 * time.Second
+	defaultReconnectWait   = 1 * time.Second
 )
 
-// NewClient create new databus client instance.
-func NewClient(servers []string, opts ...clientOption) (*Client, error) {
+// New create new NATS client instance.
+func New(servers []string, opts ...clientOption) (mq.Client, error) {
 
 	if len(servers) == 0 {
 		return nil, errors.New("NATS servers list is empty")
@@ -60,37 +60,15 @@ func NewClient(servers []string, opts ...clientOption) (*Client, error) {
 			reconnectWait:   defaultReconnectWait,
 			pingInterval:    defaultPingInterval,
 		}
-		c = &Client{}
+		c   = &Client{}
+		err error
 	)
 
 	for _, opt := range opts {
 		opt(co)
 	}
 
-	// Create connection with target options.
 	c.wg.Add(1)
-	conn, err := nats.Connect("", mkOptions(&c.wg, servers, co)...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect NATS: %w", err)
-	}
-
-	// Setup encoder if it set, or choose json.
-	if co.encoder != nil && co.encoderName != "" {
-		nats.RegisterEncoder(co.encoderName, co.encoder)
-	} else {
-		co.encoderName = nats.JSON_ENCODER
-	}
-
-	c.conn, err = nats.NewEncodedConn(conn, co.encoderName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create encoded connection: %w", err)
-	}
-
-	return c, nil
-}
-
-// mkOptions create list of options for nats client.
-func mkOptions(clientWg *sync.WaitGroup, servers []string, co *clientOptions) []nats.Option {
 
 	var natsOpts = []nats.Option{
 		nats.DrainTimeout(co.drainTimeout),
@@ -115,7 +93,7 @@ func mkOptions(clientWg *sync.WaitGroup, servers []string, co *clientOptions) []
 
 		nats.ClosedHandler(func(_ *nats.Conn) {
 			logger.New().Debug("NATS Connection closed...")
-			clientWg.Done()
+			c.wg.Done()
 		}),
 	}
 
@@ -132,5 +110,21 @@ func mkOptions(clientWg *sync.WaitGroup, servers []string, co *clientOptions) []
 		})
 	}
 
-	return natsOpts
+	c.conn, err = nats.Connect("", natsOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect NATS: %w", err)
+	}
+
+	return c, nil
+}
+
+// Publish method implements mq.Client Publish method.
+func (c *Client) Publish(_ context.Context, queue string, msg []byte) error {
+	return c.conn.Publish(queue, msg)
+}
+
+// Close method implements mq.Client Close method.
+func (c *Client) Close() error {
+	c.conn.Close()
+	return nil
 }
